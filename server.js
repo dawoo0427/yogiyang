@@ -54,6 +54,23 @@ function roomKey(code) {
   return `room:${code}`;
 }
 
+// 방이 없으면 자동 생성 (고정 방 지원: POST 없이 host/viewer가 바로 입장 가능)
+function ensureRoom(code) {
+  let r = rooms.get(code);
+  if (!r) {
+    r = {
+      code,
+      phone: null,
+      hostOnline: false,
+      lastLocation: null,
+      viewers: new Set(),
+      hostSocketId: null,
+    };
+    rooms.set(code, r);
+  }
+  return r;
+}
+
 function broadcastStats(code) {
   const room = rooms.get(code);
   if (!room) return;
@@ -89,11 +106,8 @@ io.on("connection", (socket) => {
   // ---- 호스트가 위치 공유 시작 ----
   socket.on("host:join", ({ room }) => {
     code = String(room || "").toUpperCase();
-    const r = rooms.get(code);
-    if (!r) {
-      socket.emit("error:msg", "존재하지 않는 방입니다. 다시 시작해 주세요.");
-      return;
-    }
+    if (!code) { socket.emit("error:msg", "방 코드가 없습니다."); return; }
+    const r = ensureRoom(code);
     if (r.hostOnline && r.hostSocketId && r.hostSocketId !== socket.id) {
       socket.emit("error:msg", "이미 이 방에서 공유 중인 호스트가 있습니다.");
       return;
@@ -126,11 +140,8 @@ io.on("connection", (socket) => {
   // ---- 시청자가 입장 ----
   socket.on("viewer:join", ({ room }) => {
     code = String(room || "").toUpperCase();
-    const r = rooms.get(code);
-    if (!r) {
-      socket.emit("error:msg", "존재하지 않는 방 코드입니다.");
-      return;
-    }
+    if (!code) { socket.emit("error:msg", "방 코드가 없습니다."); return; }
+    const r = ensureRoom(code);
     role = "viewer";
     r.viewers.add(socket.id);
     socket.join(roomKey(code));
