@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>여기양 - 호스트</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .panel {
+      position: fixed; top: 12px; left: 12px; right: 12px; z-index: 1000;
+      background: rgba(255,255,255,0.96); border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2); max-width: 460px; margin: 0 auto;
+    }
+    .title { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+    .status { font-size: 13px; color: #555; margin-bottom: 10px; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ccc; margin-right: 6px; }
+    .dot.live { background: #2ecc71; box-shadow: 0 0 0 4px rgba(46,204,113,.25); }
+    button {
+      width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 15px;
+      font-weight: 600; cursor: pointer; color: #fff; background: #ff6b6b;
+    }
+    button.stop { background: #888; }
+    .code { margin: 4px 0 10px; font-size: 13px; }
+    .code b { font-size: 18px; letter-spacing: 2px; background: #f1edff; color: #5b3da8; padding: 2px 8px; border-radius: 6px; }
+    .share { margin-top: 10px; font-size: 12px; word-break: break-all; }
+    .share a { color: #4a6cf7; }
+    .copy { display: inline-block; width: auto; padding: 4px 10px; font-size: 12px; margin-left: 6px; background: #4a6cf7; }
+    .off-beauty-label {
+      background: #6a0dad; color: #fff; font-weight: 800; font-size: 14px;
+      padding: 4px 10px; border-radius: 8px; border: none; box-shadow: 0 3px 8px rgba(0,0,0,.3);
+    }
+    .off-beauty-label::before { border-top-color: #6a0dad !important; }
+    .off-beauty-pin { filter: drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
+    .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="title">📍 여기양 — 호스트</div>
+    <div class="code">참여 코드 <b id="codeLabel">----</b><button class="copy" onclick="copyLink()">링크 복사</button></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">대기 중</span> · 시청자 <b id="viewers">0</b>명</div>
+    <button id="toggleBtn" onclick="toggle()">위치 공유 시작</button>
+    <div class="share">시청자 링크: <a id="viewerLink" href="#" target="_blank"></a></div>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const room = (new URLSearchParams(location.search).get("room") || "").toUpperCase();
+    document.getElementById("codeLabel").textContent = room || "----";
+    const viewerUrl = `${location.origin}/viewer.html?room=${room}`;
+    const linkEl = document.getElementById("viewerLink");
+    linkEl.textContent = viewerUrl; linkEl.href = viewerUrl;
+
+    function copyLink() {
+      navigator.clipboard.writeText(viewerUrl).then(
+        () => alert("시청자 링크가 복사되었습니다."),
+        () => prompt("아래 링크를 복사하세요:", viewerUrl)
+      );
+    }
+
+    // ▼▼ OFF BEAUTY 위치 (서울 성동구 성수동2가 301-16 근사 좌표) — 정확 좌표를 알면 이 두 줄만 교체 ▼▼
+    const OFF_BEAUTY = { lat: 37.54048, lng: 127.05601, name: "OFF BEAUTY" };
+    // ▲▲ ----------------------------------------------------------------------------------- ▲▲
+
+    const map = L.map("map").setView([OFF_BEAUTY.lat, OFF_BEAUTY.lng], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 19,
+    }).addTo(map);
+
+    // 픽셀아트 아이콘 생성기 (도트맵 → SVG rect, 확대해도 선명)
+    function makePixelIcon(px, colors, opts = {}) {
+      const scale = opts.scale || 4;
+      const W = px[0].length * scale, H = px.length * scale;
+      let rects = "";
+      for (let r = 0; r < px.length; r++) {
+        for (let c = 0; c < px[r].length; c++) {
+          const ch = px[r][c];
+          if (ch === ".") continue;
+          rects += `<rect x="${c * scale}" y="${r * scale}" width="${scale}" height="${scale}" fill="${colors[ch] || "#000"}"/>`;
+        }
+      }
+      const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+      return L.divIcon({
+        className: opts.className || "pixel-pin",
+        html: svg,
+        iconSize: [W, H],
+        iconAnchor: opts.iconAnchor || [W / 2, H - scale * 2],
+      });
+    }
+
+    // OFF BEAUTY 매장: 픽셀 토끼 얼굴 핀 (매장명 라벨 유지)
+    const RABBIT = {
+      px: [
+        "...WWW....WWW...",
+        "...WPW....WPW...",
+        "...WPW....WPW...",
+        "...WPW....WPW...",
+        "...WWW....WWW...",
+        ".....WWWWWW.....",
+        "...WWWWWWWWWW...",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWWWWWWWW..",
+        "..WWeeWWWWeeWW..",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWPPWWWWW..",
+        "..WPWWWWWWWWPW..",
+        "..WWWWWWWWWWWW..",
+        "...WWWWWWWWWW...",
+        ".....WWWWWW.....",
+      ],
+      colors: { W: "#1c1c1c", P: "#ff9ab0", e: "#ffffff" },
+    };
+    const offBeautyIcon = makePixelIcon(RABBIT.px, RABBIT.colors, {
+      scale: 5, className: "off-beauty-pin", iconAnchor: [40, 76],
+    });
+    L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindTooltip(OFF_BEAUTY.name, {
+        permanent: true, direction: "top", offset: [0, -78], className: "off-beauty-label",
+      });
+
+    // 호스트 위치: 귀여운 양 픽셀아트
+    const SHEEP = {
+      px: [
+        ".....WWWWWW.....",
+        "...WWWWWWWWWW...",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWWWWWWWW..",
+        ".WWWDDDDDDDDWWW.",
+        ".WWDDDDDDDDDDWW.",
+        ".WWDeeDDDDeeDWW.",
+        ".WWDDDDDDDDDDWW.",
+        ".WWDpDDDDDDpDWW.",
+        ".WWDDDDDDDDDDWW.",
+        "..WWDDDDDDDDWW..",
+        "..WWWWWWWWWWWW..",
+        "...WWWWWWWWWW...",
+        "...DD......DD...",
+        "...DD......DD...",
+        "................",
+      ],
+      colors: { W: "#fafafa", D: "#2e2e2e", e: "#ffffff", p: "#ff9ab0" },
+    };
+    const sheepIcon = makePixelIcon(SHEEP.px, SHEEP.colors, { scale: 4, className: "sheep-pin" });
+
+    let marker = null, accCircle = null, watchId = null, sharing = false;
+    const socket = io();
+
+    socket.on("connect", () => socket.emit("host:join", { room }));
+    socket.on("host:joined", ({ lastLocation }) => {
+      if (lastLocation) render(lastLocation, false);
+    });
+    socket.on("room:stats", ({ viewerCount }) => {
+      document.getElementById("viewers").textContent = viewerCount;
+    });
+    socket.on("error:msg", (m) => alert(m));
+
+    function render(loc, follow = true) {
+      const latlng = [loc.lat, loc.lng];
+      if (!marker) {
+        marker = L.marker(latlng, { icon: sheepIcon }).addTo(map).bindPopup("🐑 내 위치");
+        accCircle = L.circle(latlng, { radius: loc.accuracy || 30, color: "#ff6b6b", fillOpacity: 0.1 }).addTo(map);
+      } else {
+        marker.setLatLng(latlng);
+        accCircle.setLatLng(latlng).setRadius(loc.accuracy || 30);
+      }
+      if (follow) map.setView(latlng, Math.max(map.getZoom(), 16));
+    }
+
+    function toggle() {
+      sharing ? stop() : start();
+    }
+
+    let wakeLock = null;
+
+    async function start() {
+      // HTTPS(보안 컨텍스트)가 아니면 휴대폰에서 위치 권한이 차단됨
+      if (!window.isSecureContext && location.hostname !== "localhost") {
+        alert("⚠️ 휴대폰 위치 공유는 HTTPS 주소에서만 됩니다.\n현재 주소(http)에서는 위치 권한이 차단됩니다.");
+        return;
+      }
+      if (!navigator.geolocation) { alert("이 브라우저는 위치를 지원하지 않습니다."); return; }
+
+      // 화면 꺼짐 방지 (휴대폰: 화면이 꺼지면 위치 전송이 멈춤)
+      try {
+        if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+      } catch (e) { /* 미지원 브라우저는 무시 */ }
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const loc = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+          render(loc, true);
+          socket.emit("host:location", loc);
+        },
+        (err) => alert("위치 권한이 필요합니다: " + err.message),
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+      );
+      sharing = true;
+      setUI(true);
+    }
+
+    function stop() {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      watchId = null; sharing = false; setUI(false);
+      if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    }
+
+    // 화면 복귀 시 wakeLock 재요청 (브라우저가 자동 해제하는 경우 대비)
+    document.addEventListener("visibilitychange", async () => {
+      if (sharing && wakeLock === null && document.visibilityState === "visible") {
+        try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); }
+        catch (e) {}
+      }
+    });
+
+    function setUI(on) {
+      const btn = document.getElementById("toggleBtn");
+      document.getElementById("dot").classList.toggle("live", on);
+      document.getElementById("statusText").textContent = on ? "실시간 공유 중" : "정지됨";
+      btn.textContent = on ? "공유 정지" : "위치 공유 시작";
+      btn.classList.toggle("stop", on);
+    }
+  </script>
+</body>
+</html>

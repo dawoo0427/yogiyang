@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>여기양 - 위치 보기</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+    #map { height: 100vh; width: 100%; }
+    .panel {
+      position: fixed; top: 12px; left: 12px; right: 12px; z-index: 1000;
+      background: rgba(255,255,255,0.96); border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2); max-width: 460px; margin: 0 auto;
+    }
+    .title { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+    .status { font-size: 13px; color: #555; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ccc; margin-right: 6px; }
+    .dot.live { background: #2ecc71; box-shadow: 0 0 0 4px rgba(46,204,113,.25); }
+    .meta { font-size: 12px; color: #888; margin-top: 6px; }
+    .recenter {
+      position: fixed; bottom: 20px; right: 20px; z-index: 1000;
+      width: 52px; height: 52px; border-radius: 50%; border: none; background: #4ecdc4;
+      color: #053b37; font-size: 22px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    }
+    .off-beauty-label {
+      background: #6a0dad; color: #fff; font-weight: 800; font-size: 14px;
+      padding: 4px 10px; border-radius: 8px; border: none; box-shadow: 0 3px 8px rgba(0,0,0,.3);
+    }
+    .off-beauty-label::before { border-top-color: #6a0dad !important; }
+    .off-beauty-pin { filter: drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
+    .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="title">📍 여기양 — 위치 보기</div>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">호스트 연결 대기 중…</span></div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div id="map"></div>
+  <button class="recenter" onclick="recenter()" title="호스트 위치로 이동">🎯</button>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const room = (new URLSearchParams(location.search).get("room") || "").toUpperCase();
+
+    // ▼▼ OFF BEAUTY 위치 (서울 성동구 성수동2가 301-16 근사 좌표) — 정확 좌표를 알면 이 두 줄만 교체 ▼▼
+    const OFF_BEAUTY = { lat: 37.54048, lng: 127.05601, name: "OFF BEAUTY" };
+    // ▲▲ ----------------------------------------------------------------------------------- ▲▲
+
+    const map = L.map("map").setView([OFF_BEAUTY.lat, OFF_BEAUTY.lng], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 19,
+    }).addTo(map);
+
+    // 픽셀아트 아이콘 생성기 (도트맵 → SVG rect, 확대해도 선명)
+    function makePixelIcon(px, colors, opts = {}) {
+      const scale = opts.scale || 4;
+      const W = px[0].length * scale, H = px.length * scale;
+      let rects = "";
+      for (let r = 0; r < px.length; r++) {
+        for (let c = 0; c < px[r].length; c++) {
+          const ch = px[r][c];
+          if (ch === ".") continue;
+          rects += `<rect x="${c * scale}" y="${r * scale}" width="${scale}" height="${scale}" fill="${colors[ch] || "#000"}"/>`;
+        }
+      }
+      const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+      return L.divIcon({
+        className: opts.className || "pixel-pin",
+        html: svg,
+        iconSize: [W, H],
+        iconAnchor: opts.iconAnchor || [W / 2, H - scale * 2],
+      });
+    }
+
+    // OFF BEAUTY 매장: 픽셀 토끼 얼굴 핀 (매장명 라벨 유지)
+    const RABBIT = {
+      px: [
+        "...WWW....WWW...",
+        "...WPW....WPW...",
+        "...WPW....WPW...",
+        "...WPW....WPW...",
+        "...WWW....WWW...",
+        ".....WWWWWW.....",
+        "...WWWWWWWWWW...",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWWWWWWWW..",
+        "..WWeeWWWWeeWW..",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWPPWWWWW..",
+        "..WPWWWWWWWWPW..",
+        "..WWWWWWWWWWWW..",
+        "...WWWWWWWWWW...",
+        ".....WWWWWW.....",
+      ],
+      colors: { W: "#1c1c1c", P: "#ff9ab0", e: "#ffffff" },
+    };
+    const offBeautyIcon = makePixelIcon(RABBIT.px, RABBIT.colors, {
+      scale: 5, className: "off-beauty-pin", iconAnchor: [40, 76],
+    });
+    L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindTooltip(OFF_BEAUTY.name, {
+        permanent: true, direction: "top", offset: [0, -78], className: "off-beauty-label",
+      });
+
+    // 호스트 위치: 귀여운 양 픽셀아트
+    const SHEEP = {
+      px: [
+        ".....WWWWWW.....",
+        "...WWWWWWWWWW...",
+        "..WWWWWWWWWWWW..",
+        "..WWWWWWWWWWWW..",
+        ".WWWDDDDDDDDWWW.",
+        ".WWDDDDDDDDDDWW.",
+        ".WWDeeDDDDeeDWW.",
+        ".WWDDDDDDDDDDWW.",
+        ".WWDpDDDDDDpDWW.",
+        ".WWDDDDDDDDDDWW.",
+        "..WWDDDDDDDDWW..",
+        "..WWWWWWWWWWWW..",
+        "...WWWWWWWWWW...",
+        "...DD......DD...",
+        "...DD......DD...",
+        "................",
+      ],
+      colors: { W: "#fafafa", D: "#2e2e2e", e: "#ffffff", p: "#ff9ab0" },
+    };
+    const sheepIcon = makePixelIcon(SHEEP.px, SHEEP.colors, { scale: 4, className: "sheep-pin" });
+
+    let marker = null, accCircle = null, lastLatLng = null, autoFollow = true;
+    map.on("dragstart", () => { autoFollow = false; });
+
+    const socket = io();
+    socket.on("connect", () => socket.emit("viewer:join", { room }));
+
+    socket.on("viewer:joined", ({ hostOnline, lastLocation }) => {
+      setStatus(hostOnline);
+      if (lastLocation) render(lastLocation);
+    });
+    socket.on("location:update", (loc) => { setStatus(true); render(loc); });
+    socket.on("host:offline", () => setStatus(false));
+    socket.on("error:msg", (m) => alert(m));
+
+    function render(loc) {
+      const latlng = [loc.lat, loc.lng];
+      lastLatLng = latlng;
+      if (!marker) {
+        marker = L.marker(latlng, { icon: sheepIcon }).addTo(map).bindPopup("🐑 호스트");
+        accCircle = L.circle(latlng, { radius: loc.accuracy || 30, color: "#4ecdc4", fillOpacity: 0.12 }).addTo(map);
+      } else {
+        marker.setLatLng(latlng);
+        accCircle.setLatLng(latlng).setRadius(loc.accuracy || 30);
+      }
+      if (autoFollow) map.setView(latlng, Math.max(map.getZoom(), 16));
+      const t = new Date(loc.ts || Date.now()).toLocaleTimeString("ko-KR");
+      document.getElementById("meta").textContent =
+        `갱신: ${t} · 정확도 ±${Math.round(loc.accuracy || 0)}m`;
+    }
+
+    function setStatus(online) {
+      document.getElementById("dot").classList.toggle("live", online);
+      document.getElementById("statusText").textContent =
+        online ? "실시간 추적 중" : "호스트가 공유를 중지했습니다";
+    }
+
+    function recenter() {
+      autoFollow = true;
+      if (lastLatLng) map.setView(lastLatLng, 16);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>여기양</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+    }
+    .card {
+      background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+      padding: 32px; border-radius: 20px; width: 100%; max-width: 420px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    h1 { margin: 0 0 6px; font-size: 30px; }
+    p.sub { margin: 0 0 20px; opacity: 0.85; font-size: 14px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab {
+      flex: 1; text-align: center; padding: 10px; border-radius: 10px; cursor: pointer;
+      background: rgba(255,255,255,0.12); font-size: 14px; font-weight: 600;
+    }
+    .tab.active { background: rgba(255,255,255,0.95); color: #5b3da8; }
+    label { display: block; font-size: 13px; margin: 6px 0; opacity: 0.9; }
+    input {
+      width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px;
+      background: rgba(255,255,255,0.95); color: #222;
+    }
+    button.go {
+      width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700; cursor: pointer; color: #fff;
+    }
+    .host .go { background: #ff6b6b; }
+    .viewer .go { background: #4ecdc4; color: #053b37; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    .note { margin-top: 18px; font-size: 12px; opacity: 0.75; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📍 여기양</h1>
+    <p class="sub">실시간 위치 공유 · 이벤트용</p>
+
+    <div class="tabs">
+      <div class="tab active" id="tabHost" onclick="switchTab('host')">내 위치 공유</div>
+      <div class="tab" id="tabViewer" onclick="switchTab('viewer')">위치 보기</div>
+    </div>
+
+    <!-- 호스트: 번호로 방 생성 -->
+    <div class="pane host active" id="paneHost">
+      <label>내 전화번호 (방 생성용 · 공개되지 않음)</label>
+      <input id="phone" type="tel" placeholder="010-1234-5678" inputmode="numeric" />
+      <button class="go" onclick="createRoom()">위치 공유 시작</button>
+    </div>
+
+    <!-- 시청자: 참여 코드로 입장 -->
+    <div class="pane viewer" id="paneViewer">
+      <label>참여 코드</label>
+      <input id="code" type="text" placeholder="예: K7M2QX" style="text-transform:uppercase" />
+      <button class="go" onclick="joinRoom()">위치 보기</button>
+    </div>
+
+    <p class="note" id="note">
+      ※ 전화번호는 방을 만들 때만 쓰이며 <b>주소(URL)에 노출되지 않습니다.</b><br />
+      ※ 호스트는 본인 휴대폰으로 접속해 위치 권한을 허용해야 합니다.
+    </p>
+  </div>
+
+  <script>
+    function switchTab(which) {
+      const isHost = which === "host";
+      document.getElementById("tabHost").classList.toggle("active", isHost);
+      document.getElementById("tabViewer").classList.toggle("active", !isHost);
+      document.getElementById("paneHost").classList.toggle("active", isHost);
+      document.getElementById("paneViewer").classList.toggle("active", !isHost);
+    }
+
+    async function createRoom() {
+      const phone = document.getElementById("phone").value.replace(/\D/g, "");
+      if (phone.length < 8) { alert("전화번호를 정확히 입력하세요."); return; }
+      try {
+        const res = await fetch("/api/room", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || "방 생성 실패"); return; }
+        location.href = `/host.html?room=${data.room}`;
+      } catch (e) {
+        alert("서버 연결 실패: " + e.message);
+      }
+    }
+
+    function joinRoom() {
+      const code = document.getElementById("code").value.trim().toUpperCase();
+      if (code.length < 4) { alert("참여 코드를 정확히 입력하세요."); return; }
+      location.href = `/viewer.html?room=${code}`;
+    }
+  </script>
+</body>
+</html>
