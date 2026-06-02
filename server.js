@@ -101,6 +101,29 @@ app.post("/api/room", (req, res) => {
   res.json({ room: code });
 });
 
+// ---- 네이티브 호스트 앱이 위치를 HTTP로 전송 (WebView 의존 없이 백그라운드 유지) ----
+app.post("/api/location", (req, res) => {
+  const code = String((req.body && req.body.room) || "").toUpperCase();
+  if (!code) return res.status(400).json({ error: "no room" });
+  const r = ensureRoom(code);
+  const safe = {
+    lat: Number(req.body.lat),
+    lng: Number(req.body.lng),
+    accuracy: Number(req.body.accuracy) || null,
+    ts: Date.now(),
+  };
+  if (!isFinite(safe.lat) || !isFinite(safe.lng)) {
+    return res.status(400).json({ error: "bad coords" });
+  }
+  r.lastLocation = safe;
+  r.hostOnline = true;
+  r.hostLastSeen = Date.now();
+  if (r.hostGraceTimer) { clearTimeout(r.hostGraceTimer); r.hostGraceTimer = null; }
+  io.to(roomKey(code)).emit("location:update", safe);
+  broadcastStats(code);
+  res.json({ ok: true });
+});
+
 io.on("connection", (socket) => {
   let role = null; // 'host' | 'viewer'
   let code = null; // 방 코드
@@ -194,6 +217,21 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// HTTP 호스트(네이티브 앱) 오프라인 감지: 40초 이상 위치 POST 없으면 오프라인 처리
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, r] of rooms) {
+    // 소켓 호스트(hostSocketId 있음)는 소켓 연결로 관리되므로 제외
+    if (r.hostOnline && !r.hostSocketId && r.hostLastSeen && now - r.hostLastSeen > 40000) {
+      r.hostOnline = false;
+      io.to(roomKey(code)).emit("host:offline");
+      broadcastStats(code);
+      console.log(`[host:offline:stale] room=${code}`);
+      if (r.viewers.size === 0) rooms.delete(code);
+    }
+  }
+}, 15000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
