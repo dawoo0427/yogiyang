@@ -9,9 +9,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = http.createServer(app);
-// Socket.IO: 앱(다른 출처)에서의 연결 허용
+// Socket.IO: 앱(다른 출처)에서의 연결 허용 + 백그라운드 끊김 방지를 위해 ping 타임아웃 넉넉히
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
+  pingInterval: 25000,
+  pingTimeout: 60000,
 });
 
 // CORS 허용 — 네이티브 앱(https://localhost 등 다른 출처)에서 API 호출 가능하게
@@ -113,6 +115,8 @@ io.on("connection", (socket) => {
       return;
     }
     role = "host";
+    // 재연결 유예 타이머가 있으면 취소 (잠깐 끊겼다 돌아온 것)
+    if (r.hostGraceTimer) { clearTimeout(r.hostGraceTimer); r.hostGraceTimer = null; }
     r.hostOnline = true;
     r.hostSocketId = socket.id;
     socket.join(roomKey(code));
@@ -120,6 +124,9 @@ io.on("connection", (socket) => {
     broadcastStats(code);
     console.log(`[host:join] room=${code}`);
   });
+
+  // ---- 하트비트(연결 유지용, 별도 처리 불필요) ----
+  socket.on("host:heartbeat", () => {});
 
   // ---- 호스트가 위치 갱신 ----
   socket.on("host:location", (loc) => {
@@ -161,16 +168,28 @@ io.on("connection", (socket) => {
     if (!r) return;
 
     if (role === "host" && r.hostSocketId === socket.id) {
-      r.hostOnline = false;
+      // 즉시 오프라인 처리하지 않고 45초 유예 — 잠깐 끊겼다 재연결하면 세션 유지
       r.hostSocketId = null;
-      io.to(roomKey(code)).emit("host:offline");
-      console.log(`[host:leave] room=${code}`);
+      console.log(`[host:drop] room=${code} (유예 시작)`);
+      if (r.hostGraceTimer) clearTimeout(r.hostGraceTimer);
+      r.hostGraceTimer = setTimeout(() => {
+        r.hostGraceTimer = null;
+        if (!r.hostSocketId) {
+          // 유예 동안 재연결 없음 → 진짜 오프라인
+          r.hostOnline = false;
+          io.to(roomKey(code)).emit("host:offline");
+          broadcastStats(code);
+          console.log(`[host:offline] room=${code}`);
+          if (!r.hostOnline && r.viewers.size === 0) rooms.delete(code);
+        }
+      }, 45000);
     } else if (role === "viewer") {
       r.viewers.delete(socket.id);
     }
     broadcastStats(code);
 
-    if (!r.hostOnline && r.viewers.size === 0) {
+    // 호스트 유예 중이거나 온라인이면 방 유지
+    if (!r.hostOnline && !r.hostGraceTimer && r.viewers.size === 0) {
       rooms.delete(code);
     }
   });
