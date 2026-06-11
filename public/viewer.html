@@ -37,6 +37,7 @@
   <div class="panel">
     <div class="title">📍 여기양 — 위치 보기</div>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">호스트 연결 대기 중…</span></div>
+    <div class="status" style="margin-top:4px;">👀 <strong id="viewerCount">0</strong>명이 함께 보는 중</div>
     <div class="meta" id="meta"></div>
   </div>
   <div id="map"></div>
@@ -146,6 +147,11 @@
     socket.on("location:update", (loc) => { setStatus(true); render(loc); });
     socket.on("host:offline", () => setStatus(false));
     socket.on("error:msg", (m) => alert(m));
+    socket.on("room:stats", ({ viewerCount }) => {
+      if (typeof viewerCount === "number") {
+        document.getElementById("viewerCount").textContent = viewerCount;
+      }
+    });
 
     function render(loc) {
       const latlng = [loc.lat, loc.lng];

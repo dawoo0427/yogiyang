@@ -151,6 +151,15 @@ io.on("connection", (socket) => {
   // ---- 하트비트(연결 유지용, 별도 처리 불필요) ----
   socket.on("host:heartbeat", () => {});
 
+  // ---- 호스트 앱이 시청자 수만 구독(읽기 전용) — viewers 집계에 포함 안 됨 ----
+  socket.on("host:stats-watch", ({ room }) => {
+    const c = String(room || "").toUpperCase();
+    if (!c) return;
+    const r = ensureRoom(c);
+    socket.join(roomKey(c));
+    socket.emit("room:stats", { viewerCount: r.viewers.size, hostOnline: r.hostOnline });
+  });
+
   // ---- 호스트가 위치 갱신 ----
   socket.on("host:location", (loc) => {
     if (role !== "host" || !code) return;
