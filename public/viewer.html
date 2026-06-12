@@ -30,7 +30,7 @@
     }
     .off-beauty-label::before { border-top-color: #6a0dad !important; }
     .off-beauty-pin { filter: drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
-    .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); background: transparent !important; border: none !important; }
     .off-beauty-pin { cursor: default; background: transparent !important; border: none !important; }
     .off-beauty-pin.clickable { cursor: pointer; }
     /* OFF BEAUTY 토끼 이미지 마커 + 눈 깜빡임 */
@@ -189,29 +189,14 @@
     const _obEl = offBeautyMarker.getElement();
     if (_obEl) _obEl.classList.add("clickable");
 
-    // 호스트 위치: 귀여운 양 픽셀아트
-    const SHEEP = {
-      px: [
-        ".....WWWWWW.....",
-        "...WWWWWWWWWW...",
-        "..WWWWWWWWWWWW..",
-        "..WWWWWWWWWWWW..",
-        ".WWWDDDDDDDDWWW.",
-        ".WWDDDDDDDDDDWW.",
-        ".WWDeeDDDDeeDWW.",
-        ".WWDDDDDDDDDDWW.",
-        ".WWDpDDDDDDpDWW.",
-        ".WWDDDDDDDDDDWW.",
-        "..WWDDDDDDDDWW..",
-        "..WWWWWWWWWWWW..",
-        "...WWWWWWWWWW...",
-        "...DD......DD...",
-        "...DD......DD...",
-        "................",
-      ],
-      colors: { W: "#fafafa", D: "#2e2e2e", e: "#ffffff", p: "#ff9ab0" },
-    };
-    const sheepIcon = makePixelIcon(SHEEP.px, SHEEP.colors, { scale: 4, className: "sheep-pin" });
+    // 호스트 위치: 귀여운 양 캐릭터 이미지 (크기 유지 64x64)
+    const SHEEP_W = 64, SHEEP_H = 64;
+    const sheepIcon = L.divIcon({
+      className: "sheep-pin",
+      html: '<img src="/host-sheep.png" alt="호스트" draggable="false" style="width:100%;height:100%;display:block;" />',
+      iconSize: [SHEEP_W, SHEEP_H],
+      iconAnchor: [SHEEP_W / 2, SHEEP_H - 8],
+    });
 
     let marker = null, accCircle = null, lastLatLng = null, autoFollow = true;
     map.on("dragstart", () => { autoFollow = false; });
