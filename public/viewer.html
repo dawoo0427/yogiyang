@@ -69,6 +69,7 @@
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">호스트 연결 대기 중…</span></div>
     <div class="status" id="viewersLine" style="margin-top:4px;">👀 <strong id="viewerCount">0</strong>명이 함께 보는 중</div>
     <div class="meta" id="meta"></div>
+    <div class="meta" id="rabbitHint" style="margin-top:2px;display:none;">🐰 OFF BEAUTY 토끼를 누르면 팝업스토어 정보가 나와요</div>
   </div>
   <div id="map"></div>
   <button class="recenter" id="recenterBtn" onclick="recenter()" title="호스트 위치로 이동">🎯</button>
@@ -178,12 +179,10 @@
       .bindTooltip(OFF_BEAUTY.name, {
         permanent: true, direction: "top", offset: [0, -78], className: "off-beauty-label",
       });
-    // 7/11 이후에는 토끼 로고를 누르면 팝업스토어 정보/종료 안내가 뜬다
-    if (PHASE !== "tracking") {
-      offBeautyMarker.on("click", () => openModal());
-      const el = offBeautyMarker.getElement();
-      if (el) el.classList.add("clickable");
-    }
+    // 언제든 토끼 로고를 누르면 팝업스토어 정보(또는 7/13~ 종료 안내)가 뜬다
+    offBeautyMarker.on("click", () => openModal());
+    const _obEl = offBeautyMarker.getElement();
+    if (_obEl) _obEl.classList.add("clickable");
 
     // 호스트 위치: 귀여운 양 픽셀아트
     const SHEEP = {
@@ -214,6 +213,7 @@
 
     let socket = null;
     if (PHASE === "tracking") {
+      document.getElementById("rabbitHint").style.display = "block";
       socket = io();
       socket.on("connect", () => socket.emit("viewer:join", { room }));
       socket.on("viewer:joined", ({ hostOnline, lastLocation }) => {
@@ -250,7 +250,7 @@
     // ===== 팝업스토어 정보 / 종료 안내 모달 =====
     function openModal() {
       const c = document.getElementById("popupContent");
-      if (PHASE === "popup") {
+      if (PHASE !== "ended") {
         const p = POPUP_INFO;
         c.innerHTML =
           '<div class="popup-emoji">🐰💜</div>' +
@@ -279,8 +279,6 @@
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
-    // popup 기간에는 안내를 위해 자동으로 한 번 열어준다
-    if (PHASE === "popup") setTimeout(openModal, 600);
 
     function render(loc) {
       const latlng = [loc.lat, loc.lng];
