@@ -31,8 +31,25 @@
     .off-beauty-label::before { border-top-color: #6a0dad !important; }
     .off-beauty-pin { filter: drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
     .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
-    .off-beauty-pin { cursor: default; }
+    .off-beauty-pin { cursor: default; background: transparent !important; border: none !important; }
     .off-beauty-pin.clickable { cursor: pointer; }
+    /* OFF BEAUTY 토끼 이미지 마커 + 눈 깜빡임 */
+    .ob-rabbit { position: relative; width: 100%; height: 100%; }
+    .ob-rabbit img { width: 100%; height: 100%; display: block; -webkit-user-drag: none; user-select: none; }
+    .ob-eyelid {
+      position: absolute; width: 8%; height: 8%;
+      background: #49474f; border-radius: 45% 45% 48% 48%;
+      transform: scaleY(0); transform-origin: top center;
+      animation: ob-blink 4.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .ob-eye-l { left: 33.6%; top: 41.3%; }
+    .ob-eye-r { left: 56.9%; top: 41.3%; animation-delay: .06s; }
+    @keyframes ob-blink {
+      0%, 90%, 100% { transform: scaleY(0); }
+      93%, 96%      { transform: scaleY(1); }
+    }
+    @media (prefers-reduced-motion: reduce) { .ob-eyelid { animation: none; } }
     /* 팝업스토어 정보 모달 */
     .popup-overlay {
       display: none; position: fixed; inset: 0; z-index: 2000;
@@ -149,35 +166,23 @@
       });
     }
 
-    // OFF BEAUTY 매장: 픽셀 토끼 얼굴 핀 (매장명 라벨 유지)
-    const RABBIT = {
-      px: [
-        "...WWW....WWW...",
-        "...WPW....WPW...",
-        "...WPW....WPW...",
-        "...WPW....WPW...",
-        "...WWW....WWW...",
-        ".....WWWWWW.....",
-        "...WWWWWWWWWW...",
-        "..WWWWWWWWWWWW..",
-        "..WWWWWWWWWWWW..",
-        "..WWeeWWWWeeWW..",
-        "..WWWWWWWWWWWW..",
-        "..WWWWWPPWWWWW..",
-        "..WPWWWWWWWWPW..",
-        "..WWWWWWWWWWWW..",
-        "...WWWWWWWWWW...",
-        ".....WWWWWW.....",
-      ],
-      colors: { W: "#1c1c1c", P: "#ff9ab0", e: "#ffffff" },
-    };
-    const offBeautyIcon = makePixelIcon(RABBIT.px, RABBIT.colors, {
-      scale: 5, className: "off-beauty-pin", iconAnchor: [40, 76],
+    // OFF BEAUTY 매장: 토끼 캐릭터 이미지 핀 (눈 깜빡임 모션, 매장명 라벨 유지)
+    const RABBIT_W = 80, RABBIT_H = 107; // 원본 1086x1448 비율(≈0.75)
+    const offBeautyIcon = L.divIcon({
+      className: "off-beauty-pin",
+      html:
+        '<div class="ob-rabbit">' +
+          '<img src="/off-beauty-rabbit.png" alt="OFF BEAUTY" draggable="false" />' +
+          '<span class="ob-eyelid ob-eye-l"></span>' +
+          '<span class="ob-eyelid ob-eye-r"></span>' +
+        '</div>',
+      iconSize: [RABBIT_W, RABBIT_H],
+      iconAnchor: [RABBIT_W / 2, RABBIT_H - 4],
     });
     const offBeautyMarker = L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
       .addTo(map)
       .bindTooltip(OFF_BEAUTY.name, {
-        permanent: true, direction: "top", offset: [0, -78], className: "off-beauty-label",
+        permanent: true, direction: "top", offset: [0, -101], className: "off-beauty-label",
       });
     // 언제든 토끼 로고를 누르면 팝업스토어 정보(또는 7/13~ 종료 안내)가 뜬다
     offBeautyMarker.on("click", () => openModal());
