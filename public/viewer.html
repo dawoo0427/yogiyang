@@ -190,12 +190,12 @@
     if (_obEl) _obEl.classList.add("clickable");
 
     // 호스트 위치: 귀여운 양 캐릭터 이미지 (크기 유지 64x64)
-    const SHEEP_W = 64, SHEEP_H = 64;
+    const SHEEP_W = 128, SHEEP_H = 128;
     const sheepIcon = L.divIcon({
       className: "sheep-pin",
       html: '<img src="/host-sheep.png" alt="호스트" draggable="false" style="width:100%;height:100%;display:block;" />',
       iconSize: [SHEEP_W, SHEEP_H],
-      iconAnchor: [SHEEP_W / 2, SHEEP_H - 8],
+      iconAnchor: [SHEEP_W / 2, SHEEP_H - 16],
     });
 
     let marker = null, accCircle = null, lastLatLng = null, autoFollow = true;
