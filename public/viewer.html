@@ -31,17 +31,55 @@
     .off-beauty-label::before { border-top-color: #6a0dad !important; }
     .off-beauty-pin { filter: drop-shadow(0 4px 6px rgba(0,0,0,.4)); }
     .sheep-pin { filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .off-beauty-pin { cursor: default; }
+    .off-beauty-pin.clickable { cursor: pointer; }
+    /* 팝업스토어 정보 모달 */
+    .popup-overlay {
+      display: none; position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,.55); padding: 20px;
+      align-items: center; justify-content: center;
+    }
+    .popup-overlay.show { display: flex; }
+    .popup-box {
+      position: relative; width: 100%; max-width: 420px;
+      background: #fff; border-radius: 20px; padding: 26px 22px 24px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35); text-align: center;
+      max-height: 86vh; overflow: auto;
+    }
+    .popup-close {
+      position: absolute; top: 12px; right: 14px; width: 34px; height: 34px;
+      border: none; background: #f1f1f4; border-radius: 50%; font-size: 20px;
+      color: #555; cursor: pointer; line-height: 1;
+    }
+    .popup-emoji { font-size: 46px; margin: 4px 0 6px; }
+    .popup-title { font-size: 21px; font-weight: 800; color: #6a0dad; margin: 0 0 14px; }
+    .popup-row { font-size: 15px; color: #333; margin: 7px 0; line-height: 1.5; }
+    .popup-row b { color: #111; }
+    .popup-desc { font-size: 14px; color: #555; line-height: 1.7; margin: 14px 0 4px; white-space: pre-line; }
+    .popup-btn {
+      display: inline-block; margin-top: 18px; padding: 13px 22px; border-radius: 12px;
+      background: #6a0dad; color: #fff; font-weight: 700; font-size: 15px;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <div class="panel">
     <div class="title">📍 여기양 — 위치 보기</div>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">호스트 연결 대기 중…</span></div>
-    <div class="status" style="margin-top:4px;">👀 <strong id="viewerCount">0</strong>명이 함께 보는 중</div>
+    <div class="status" id="viewersLine" style="margin-top:4px;">👀 <strong id="viewerCount">0</strong>명이 함께 보는 중</div>
     <div class="meta" id="meta"></div>
   </div>
   <div id="map"></div>
-  <button class="recenter" onclick="recenter()" title="호스트 위치로 이동">🎯</button>
+  <button class="recenter" id="recenterBtn" onclick="recenter()" title="호스트 위치로 이동">🎯</button>
+
+  <!-- OFF BEAUTY 팝업스토어 정보 모달 (7/11~12 토끼 클릭 시) -->
+  <div class="popup-overlay" id="popupOverlay" onclick="closeModal(event)">
+    <div class="popup-box" onclick="event.stopPropagation()">
+      <button class="popup-close" onclick="closeModal()" aria-label="닫기">×</button>
+      <div id="popupContent"></div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/socket.io/socket.io.js"></script>
@@ -51,6 +89,35 @@
 
     // ▼▼ OFF BEAUTY 위치 (서울 성동구 연무장3길 9, 오프뷰티 성수메가팩토리점 — 카카오맵 정확 좌표) ▼▼
     const OFF_BEAUTY = { lat: 37.54439814, lng: 127.0513618, name: "OFF BEAUTY" };
+    // ▲▲ ----------------------------------------------------------------------------------- ▲▲
+
+    // ===== 기간별 동작 (한국 표준시 KST 기준) =====
+    //  ~7/10  : 실시간 위치추적(tracking)
+    //  7/11~12: 추적 중단, 토끼 클릭 시 팝업스토어 정보(popup)
+    //  7/13~  : 추적 중단, 토끼 클릭 시 종료 안내(ended)
+    function nowKST() {
+      const now = new Date();
+      return new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000); // UTC+9
+    }
+    function currentPhase() {
+      const d = nowKST();
+      const ymd = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+      if (ymd <= 20260710) return "tracking";
+      if (ymd <= 20260712) return "popup";
+      return "ended";
+    }
+    const PHASE = currentPhase();
+
+    // ▼▼ 팝업스토어 정보 — 실제 내용으로 이 블록만 교체하면 됩니다 ▼▼
+    const POPUP_INFO = {
+      title: "OFF BEAUTY 팝업스토어",
+      dateText: "2026.07.11(금) ~ 07.12(토)",
+      hours: "11:00 ~ 20:00",
+      place: "OFF BEAUTY 성수메가팩토리점",
+      address: "서울 성동구 연무장3길 9",
+      desc: "여기양과 함께한 이벤트가 마무리됩니다!\n7/11~12 OFF BEAUTY 팝업스토어에서 만나요 💜",
+      link: "https://offbeauty-percent.com/",
+    };
     // ▲▲ ----------------------------------------------------------------------------------- ▲▲
 
     const map = L.map("map").setView([OFF_BEAUTY.lat, OFF_BEAUTY.lng], 16);
@@ -104,11 +171,17 @@
     const offBeautyIcon = makePixelIcon(RABBIT.px, RABBIT.colors, {
       scale: 5, className: "off-beauty-pin", iconAnchor: [40, 76],
     });
-    L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
+    const offBeautyMarker = L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
       .addTo(map)
       .bindTooltip(OFF_BEAUTY.name, {
         permanent: true, direction: "top", offset: [0, -78], className: "off-beauty-label",
       });
+    // 7/11 이후에는 토끼 로고를 누르면 팝업스토어 정보/종료 안내가 뜬다
+    if (PHASE !== "tracking") {
+      offBeautyMarker.on("click", () => openModal());
+      const el = offBeautyMarker.getElement();
+      if (el) el.classList.add("clickable");
+    }
 
     // 호스트 위치: 귀여운 양 픽셀아트
     const SHEEP = {
@@ -137,21 +210,75 @@
     let marker = null, accCircle = null, lastLatLng = null, autoFollow = true;
     map.on("dragstart", () => { autoFollow = false; });
 
-    const socket = io();
-    socket.on("connect", () => socket.emit("viewer:join", { room }));
+    let socket = null;
+    if (PHASE === "tracking") {
+      socket = io();
+      socket.on("connect", () => socket.emit("viewer:join", { room }));
+      socket.on("viewer:joined", ({ hostOnline, lastLocation }) => {
+        setStatus(hostOnline);
+        if (lastLocation) render(lastLocation);
+      });
+      socket.on("location:update", (loc) => { setStatus(true); render(loc); });
+      socket.on("host:offline", () => setStatus(false));
+      socket.on("error:msg", (m) => alert(m));
+      socket.on("room:stats", ({ viewerCount }) => {
+        if (typeof viewerCount === "number") {
+          document.getElementById("viewerCount").textContent = viewerCount;
+        }
+      });
+    } else {
+      applyEventPanel();
+    }
 
-    socket.on("viewer:joined", ({ hostOnline, lastLocation }) => {
-      setStatus(hostOnline);
-      if (lastLocation) render(lastLocation);
-    });
-    socket.on("location:update", (loc) => { setStatus(true); render(loc); });
-    socket.on("host:offline", () => setStatus(false));
-    socket.on("error:msg", (m) => alert(m));
-    socket.on("room:stats", ({ viewerCount }) => {
-      if (typeof viewerCount === "number") {
-        document.getElementById("viewerCount").textContent = viewerCount;
+    // 추적 종료 기간(7/11~)의 안내 패널
+    function applyEventPanel() {
+      document.getElementById("viewersLine").style.display = "none";
+      document.getElementById("recenterBtn").style.display = "none";
+      const st = document.getElementById("statusText");
+      const meta = document.getElementById("meta");
+      if (PHASE === "popup") {
+        st.textContent = "OFF BEAUTY 팝업스토어 기간";
+        meta.textContent = "🐰 토끼 로고를 누르면 팝업스토어 정보가 나와요";
+      } else {
+        st.textContent = "이벤트가 종료되었습니다";
+        meta.textContent = "🐰 토끼 로고를 눌러 안내를 확인하세요";
       }
-    });
+    }
+
+    // ===== 팝업스토어 정보 / 종료 안내 모달 =====
+    function openModal() {
+      const c = document.getElementById("popupContent");
+      if (PHASE === "popup") {
+        const p = POPUP_INFO;
+        c.innerHTML =
+          '<div class="popup-emoji">🐰💜</div>' +
+          '<h2 class="popup-title">' + esc(p.title) + '</h2>' +
+          '<div class="popup-row">📅 <b>' + esc(p.dateText) + '</b></div>' +
+          '<div class="popup-row">🕚 ' + esc(p.hours) + '</div>' +
+          '<div class="popup-row">📍 ' + esc(p.place) + '</div>' +
+          '<div class="popup-row">' + esc(p.address) + '</div>' +
+          '<div class="popup-desc">' + esc(p.desc) + '</div>' +
+          (p.link ? '<a class="popup-btn" href="' + esc(p.link) + '" target="_blank" rel="noopener">자세히 보기</a>' : '');
+      } else {
+        c.innerHTML =
+          '<div class="popup-emoji">🐰</div>' +
+          '<h2 class="popup-title">이벤트가 종료되었습니다</h2>' +
+          '<div class="popup-desc">여기양 위치 공유 이벤트가 종료되었습니다.\n그동안 함께해 주셔서 감사합니다 💜</div>' +
+          (POPUP_INFO.link ? '<a class="popup-btn" href="' + esc(POPUP_INFO.link) + '" target="_blank" rel="noopener">OFF BEAUTY 보러가기</a>' : '');
+      }
+      document.getElementById("popupOverlay").classList.add("show");
+    }
+    function closeModal() {
+      // 오버레이 클릭 또는 × 버튼 → 닫기 (박스 내부 클릭은 stopPropagation으로 안 닫힘)
+      document.getElementById("popupOverlay").classList.remove("show");
+    }
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    // popup 기간에는 안내를 위해 자동으로 한 번 열어준다
+    if (PHASE === "popup") setTimeout(openModal, 600);
 
     function render(loc) {
       const latlng = [loc.lat, loc.lng];
