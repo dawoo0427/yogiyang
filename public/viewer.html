@@ -106,7 +106,9 @@
       if (ymd <= 20260712) return "popup";
       return "ended";
     }
-    const PHASE = currentPhase();
+    // ?preview=tracking|popup|ended 로 강제 미리보기 (평소엔 영향 없음)
+    const _preview = (new URLSearchParams(location.search).get("preview") || "").toLowerCase();
+    const PHASE = (["tracking", "popup", "ended"].indexOf(_preview) >= 0) ? _preview : currentPhase();
 
     // ▼▼ 팝업스토어 정보 — 실제 내용으로 이 블록만 교체하면 됩니다 ▼▼
     const POPUP_INFO = {
