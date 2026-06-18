@@ -270,20 +270,22 @@
         .replace(/"/g, "&quot;");
     }
 
+    const ACC_MAX = 10; // 표시되는 위치 오차범위(정확도 원) 최대치 — 10m로 제한
     function render(loc) {
       const latlng = [loc.lat, loc.lng];
       lastLatLng = latlng;
+      const accShown = Math.min(loc.accuracy || ACC_MAX, ACC_MAX); // 10m 이내로 제한
       if (!marker) {
         marker = L.marker(latlng, { icon: sheepIcon }).addTo(map).bindPopup("🐑 호스트");
-        accCircle = L.circle(latlng, { radius: loc.accuracy || 30, color: "#4ecdc4", fillOpacity: 0.12 }).addTo(map);
+        accCircle = L.circle(latlng, { radius: accShown, color: "#4ecdc4", fillOpacity: 0.12 }).addTo(map);
       } else {
         marker.setLatLng(latlng);
-        accCircle.setLatLng(latlng).setRadius(loc.accuracy || 30);
+        accCircle.setLatLng(latlng).setRadius(accShown);
       }
       if (autoFollow) map.setView(latlng, Math.max(map.getZoom(), 16));
       const t = new Date(loc.ts || Date.now()).toLocaleTimeString("ko-KR");
       document.getElementById("meta").textContent =
-        `갱신: ${t} · 정확도 ±${Math.round(loc.accuracy || 0)}m`;
+        `갱신: ${t} · 정확도 ±${Math.round(accShown)}m`;
     }
 
     function setStatus(online) {
