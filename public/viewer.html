@@ -230,7 +230,7 @@
         if (lastLocation) render(lastLocation);
       });
       socket.on("location:update", (loc) => { setStatus(true); render(loc); });
-      socket.on("host:offline", () => setStatus(false));
+      socket.on("host:offline", () => { setStatus(false); removeSheep(); });
       socket.on("error:msg", (m) => alert(m));
       socket.on("room:stats", ({ viewerCount }) => {
         if (typeof viewerCount === "number") {
@@ -311,6 +311,14 @@
       const t = new Date(loc.ts || Date.now()).toLocaleTimeString("ko-KR");
       document.getElementById("meta").textContent =
         `갱신: ${t} · 정확도 ±${Math.round(accShown)}m`;
+    }
+
+    // 호스트가 공유를 중지(오프라인)하면 지도에서 양 마커·정확도 원 제거
+    function removeSheep() {
+      if (marker) { map.removeLayer(marker); marker = null; }
+      if (accCircle) { map.removeLayer(accCircle); accCircle = null; }
+      lastLatLng = null;
+      document.getElementById("meta").textContent = "";
     }
 
     function setStatus(online) {
