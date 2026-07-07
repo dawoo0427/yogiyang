@@ -186,6 +186,9 @@
       }
       if (!navigator.geolocation) { alert("이 브라우저는 위치를 지원하지 않습니다."); return; }
 
+      // 정지 후 다시 시작하는 경우를 대비해 방에 재입장(호스트 등록)
+      if (socket && socket.connected) socket.emit("host:join", { room });
+
       // 화면 꺼짐 방지 (휴대폰: 화면이 꺼지면 위치 전송이 멈춤)
       try {
         if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
@@ -211,6 +214,8 @@
     function stop() {
       if (watchId != null) navigator.geolocation.clearWatch(watchId);
       watchId = null; sharing = false; setUI(false);
+      // 서버에 즉시 오프라인 알림 → 시청자 지도에서 양 마커가 바로 사라짐
+      if (socket && socket.connected) socket.emit("host:stop");
       if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
     }
 

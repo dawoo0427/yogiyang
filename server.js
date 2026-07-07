@@ -151,6 +151,20 @@ io.on("connection", (socket) => {
   // ---- 하트비트(연결 유지용, 별도 처리 불필요) ----
   socket.on("host:heartbeat", () => {});
 
+  // ---- 호스트가 공유 '정지' 버튼 → 소켓은 유지한 채 즉시 오프라인 처리 ----
+  socket.on("host:stop", () => {
+    if (role !== "host" || !code) return;
+    const r = rooms.get(code);
+    if (!r) return;
+    if (r.hostGraceTimer) { clearTimeout(r.hostGraceTimer); r.hostGraceTimer = null; }
+    r.hostOnline = false;
+    r.hostSocketId = null;
+    io.to(roomKey(code)).emit("host:offline");
+    broadcastStats(code);
+    console.log(`[host:stop] room=${code}`);
+    if (r.viewers.size === 0) rooms.delete(code);
+  });
+
   // ---- 호스트 앱이 시청자 수만 구독(읽기 전용) — viewers 집계에 포함 안 됨 ----
   socket.on("host:stats-watch", ({ room }) => {
     const c = String(room || "").toUpperCase();
