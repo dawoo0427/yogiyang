@@ -78,6 +78,13 @@
       background: #6a0dad; color: #fff; font-weight: 700; font-size: 15px;
       text-decoration: none;
     }
+    /* 이미지 팝업(포스터) 모드 — 여백 없이 이미지가 박스에 꽉 참 */
+    .popup-box.image-mode { padding: 0; background: transparent; box-shadow: none; overflow: visible; max-width: 460px; }
+    .popup-img { display: block; width: 100%; height: auto; border-radius: 16px; max-height: 86vh; object-fit: contain; }
+    .popup-box.image-mode .popup-close {
+      top: -10px; right: -10px; background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35); z-index: 3;
+    }
   </style>
 </head>
 <body>
@@ -184,8 +191,8 @@
       .bindTooltip(OFF_BEAUTY.name, {
         permanent: true, direction: "top", offset: [0, -208], className: "off-beauty-label",
       });
-    // 언제든 토끼 로고를 누르면 팝업스토어 정보(또는 7/13~ 종료 안내)가 뜬다
-    offBeautyMarker.on("click", () => openModal());
+    // 언제든 토끼 로고를 누르면 이벤트 팝업(또는 7/13~ 종료 안내)이 뜬다
+    offBeautyMarker.on("click", () => openModal("rabbit"));
     const _obEl = offBeautyMarker.getElement();
     if (_obEl) _obEl.classList.add("clickable");
 
@@ -237,26 +244,25 @@
       }
     }
 
-    // ===== 팝업스토어 정보 / 종료 안내 모달 =====
-    function openModal() {
+    // ===== 이벤트 이미지 팝업 / 종료 안내 모달 =====
+    //  which === "sheep": 하양목장 이벤트 포스터
+    //  which === "rabbit": 팝업스토어 이벤트 포스터 (7/13~ ended면 종료 안내 텍스트)
+    function openModal(which) {
+      const box = document.querySelector(".popup-box");
       const c = document.getElementById("popupContent");
-      if (PHASE !== "ended") {
-        const p = POPUP_INFO;
-        c.innerHTML =
-          '<div class="popup-emoji">🐰💜</div>' +
-          '<h2 class="popup-title">' + esc(p.title) + '</h2>' +
-          '<div class="popup-row">📅 <b>' + esc(p.dateText) + '</b></div>' +
-          '<div class="popup-row">🕚 ' + esc(p.hours) + '</div>' +
-          '<div class="popup-row">📍 ' + esc(p.place) + '</div>' +
-          '<div class="popup-row">' + esc(p.address) + '</div>' +
-          '<div class="popup-desc">' + esc(p.desc) + '</div>' +
-          (p.link ? '<a class="popup-btn" href="' + esc(p.link) + '" target="_blank" rel="noopener">자세히 보기</a>' : '');
-      } else {
+      if (which === "sheep") {
+        box.classList.add("image-mode");
+        c.innerHTML = '<img class="popup-img" src="/popup-sheep.jpg" alt="OFF BEAUTY x 하양목장 이벤트" draggable="false" />';
+      } else if (PHASE === "ended") {
+        box.classList.remove("image-mode");
         c.innerHTML =
           '<div class="popup-emoji">🐰</div>' +
           '<h2 class="popup-title">이벤트가 종료되었습니다</h2>' +
           '<div class="popup-desc">여기양 위치 공유 이벤트가 종료되었습니다.\n그동안 함께해 주셔서 감사합니다 💜</div>' +
           (POPUP_INFO.link ? '<a class="popup-btn" href="' + esc(POPUP_INFO.link) + '" target="_blank" rel="noopener">OFF BEAUTY 보러가기</a>' : '');
+      } else {
+        box.classList.add("image-mode");
+        c.innerHTML = '<img class="popup-img" src="/popup-rabbit.jpg" alt="OFF BEAUTY SUMMER WEEKEND 이벤트" draggable="false" />';
       }
       document.getElementById("popupOverlay").classList.add("show");
     }
@@ -276,7 +282,10 @@
       lastLatLng = latlng;
       const accShown = Math.min(loc.accuracy || ACC_MAX, ACC_MAX); // 10m 이내로 제한
       if (!marker) {
-        marker = L.marker(latlng, { icon: sheepIcon }).addTo(map).bindPopup("🐑 호스트");
+        marker = L.marker(latlng, { icon: sheepIcon }).addTo(map);
+        marker.on("click", () => openModal("sheep")); // 양 클릭 → 하양목장 이벤트 팝업
+        const _shEl = marker.getElement();
+        if (_shEl) _shEl.style.cursor = "pointer";
         accCircle = L.circle(latlng, { radius: accShown, color: "#4ecdc4", fillOpacity: 0.12 }).addTo(map);
       } else {
         marker.setLatLng(latlng);
