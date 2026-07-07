@@ -80,11 +80,21 @@
     }
     /* 이미지 팝업(포스터) 모드 — 여백 없이 이미지가 박스에 꽉 참 */
     .popup-box.image-mode { padding: 0; background: transparent; box-shadow: none; overflow: visible; max-width: 460px; }
-    .popup-img { display: block; width: 100%; height: auto; border-radius: 16px; max-height: 86vh; object-fit: contain; }
+    .popup-img-wrap { position: relative; display: block; line-height: 0; }
+    .popup-img { display: block; width: 100%; height: auto; border-radius: 16px; }
     .popup-box.image-mode .popup-close {
       top: -10px; right: -10px; background: #fff;
       box-shadow: 0 2px 8px rgba(0,0,0,.35); z-index: 3;
     }
+    /* 포스터 위 '자세히 보기' 버튼 (EVENT 3 아래) */
+    .popup-cta {
+      position: absolute; left: 50%; top: 69%; transform: translateX(-50%);
+      padding: 11px 30px; border-radius: 999px;
+      background: #c9f24d; color: #111; font-weight: 800; font-size: 15px;
+      letter-spacing: -.2px; line-height: 1; text-decoration: none; white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0,0,0,.45); z-index: 2;
+    }
+    .popup-cta:active { transform: translateX(-50%) scale(.96); }
   </style>
 </head>
 <body>
@@ -145,6 +155,8 @@
       desc: "여기양과 함께한 이벤트가 마무리됩니다!\n7/10~12 OFF BEAUTY 팝업스토어에서 만나요 💜",
       link: "https://offbeauty-percent.com/",
     };
+    // 토끼 팝업 '자세히 보기' 버튼 이동 링크 (OFF BEAUTY 인스타그램)
+    const INSTAGRAM_URL = "https://www.instagram.com/offbeauty.kr?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==";
     // ▲▲ ----------------------------------------------------------------------------------- ▲▲
 
     const map = L.map("map").setView([OFF_BEAUTY.lat, OFF_BEAUTY.lng], 16);
@@ -262,7 +274,11 @@
           (POPUP_INFO.link ? '<a class="popup-btn" href="' + esc(POPUP_INFO.link) + '" target="_blank" rel="noopener">OFF BEAUTY 보러가기</a>' : '');
       } else {
         box.classList.add("image-mode");
-        c.innerHTML = '<img class="popup-img" src="/popup-rabbit.jpg" alt="OFF BEAUTY SUMMER WEEKEND 이벤트" draggable="false" />';
+        c.innerHTML =
+          '<div class="popup-img-wrap">' +
+            '<img class="popup-img" src="/popup-rabbit.jpg" alt="OFF BEAUTY SUMMER WEEKEND 이벤트" draggable="false" />' +
+            '<a class="popup-cta" href="' + esc(INSTAGRAM_URL) + '" target="_blank" rel="noopener">자세히 보기</a>' +
+          '</div>';
       }
       document.getElementById("popupOverlay").classList.add("show");
     }
