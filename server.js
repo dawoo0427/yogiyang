@@ -124,6 +124,24 @@ app.post("/api/location", (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- 네이티브 호스트 앱이 '정지'를 누르면 즉시 오프라인 처리 (40초 대기 없이) ----
+app.post("/api/stop", (req, res) => {
+  const code = String((req.body && req.body.room) || "").toUpperCase();
+  if (!code) return res.status(400).json({ error: "no room" });
+  const r = rooms.get(code);
+  if (!r) return res.json({ ok: true });
+  // 소켓 호스트가 아닌 HTTP(네이티브) 호스트만 즉시 오프라인 처리
+  if (!r.hostSocketId) {
+    r.hostOnline = false;
+    r.hostLastSeen = null;
+    io.to(roomKey(code)).emit("host:offline");
+    broadcastStats(code);
+    console.log(`[host:stop:http] room=${code}`);
+    if (r.viewers.size === 0) rooms.delete(code);
+  }
+  res.json({ ok: true });
+});
+
 io.on("connection", (socket) => {
   let role = null; // 'host' | 'viewer'
   let code = null; // 방 코드
