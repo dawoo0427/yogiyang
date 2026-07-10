@@ -186,7 +186,7 @@
     }
 
     // OFF BEAUTY 매장: 토끼 캐릭터 이미지 핀 (눈 깜빡임 모션, 매장명 라벨 유지)
-    const RABBIT_W = 160, RABBIT_H = 214; // 원본 1086x1448 비율(≈0.75), 2배 크기
+    const RABBIT_W = 144, RABBIT_H = 193; // 원본 1086x1448 비율(≈0.75), 기존 대비 10% 축소
     const offBeautyIcon = L.divIcon({
       className: "off-beauty-pin",
       html:
@@ -201,7 +201,7 @@
     const offBeautyMarker = L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
       .addTo(map)
       .bindTooltip(OFF_BEAUTY.name, {
-        permanent: true, direction: "top", offset: [0, -208], className: "off-beauty-label",
+        permanent: true, direction: "top", offset: [0, -187], className: "off-beauty-label",
       });
     // 언제든 토끼 로고를 누르면 이벤트 팝업(또는 7/13~ 종료 안내)이 뜬다
     offBeautyMarker.on("click", () => openModal("rabbit"));
@@ -298,7 +298,8 @@
       lastLatLng = latlng;
       const accShown = Math.min(loc.accuracy || ACC_MAX, ACC_MAX); // 10m 이내로 제한
       if (!marker) {
-        marker = L.marker(latlng, { icon: sheepIcon }).addTo(map);
+        // 토끼(zIndexOffset:1000)와 겹쳐도 양이 항상 맨 앞에 오도록 더 높은 zIndexOffset 부여
+        marker = L.marker(latlng, { icon: sheepIcon, zIndexOffset: 10000 }).addTo(map);
         marker.on("click", () => openModal("sheep")); // 양 클릭 → 하양목장 이벤트 팝업
         const _shEl = marker.getElement();
         if (_shEl) _shEl.style.cursor = "pointer";
