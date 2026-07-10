@@ -186,7 +186,7 @@
     }
 
     // OFF BEAUTY 매장: 토끼 캐릭터 이미지 핀 (눈 깜빡임 모션, 매장명 라벨 유지)
-    const RABBIT_W = 130, RABBIT_H = 174; // 원본 1086x1448 비율(≈0.75), 추가 10% 축소
+    const RABBIT_W = 117, RABBIT_H = 157; // 원본 1086x1448 비율(≈0.75), 추가 10% 축소
     const offBeautyIcon = L.divIcon({
       className: "off-beauty-pin",
       html:
@@ -201,7 +201,7 @@
     const offBeautyMarker = L.marker([OFF_BEAUTY.lat, OFF_BEAUTY.lng], { icon: offBeautyIcon, zIndexOffset: 1000 })
       .addTo(map)
       .bindTooltip(OFF_BEAUTY.name, {
-        permanent: true, direction: "top", offset: [0, -168], className: "off-beauty-label",
+        permanent: true, direction: "top", offset: [0, -151], className: "off-beauty-label",
       });
     // 언제든 토끼 로고를 누르면 이벤트 팝업(또는 7/13~ 종료 안내)이 뜬다
     offBeautyMarker.on("click", () => openModal("rabbit"));
